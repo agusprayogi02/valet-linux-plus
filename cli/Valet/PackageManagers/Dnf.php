@@ -36,6 +36,9 @@ class Dnf implements PackageManager
      */
     public function installed($package)
     {
+        if ($package == 'php-mysql') {
+            $package = 'php-mysqlnd';
+        }
         $query = "dnf list installed {$package} | grep {$package} | sed 's_  _\\t_g' | sed 's_\\._\\t_g' | cut -f 1";
 
         $packages = explode(PHP_EOL, $this->cli->run($query));
@@ -66,12 +69,12 @@ class Dnf implements PackageManager
      */
     public function installOrFail($package)
     {
-        output('<info>['.$package.'] is not installed, installing it now via Dnf</info>');
+        output('<info>[' . $package . '] is not installed, installing it now via Dnf</info>');
 
-        $this->cli->run(trim('dnf install -y '.$package), function ($exitCode, $errorOutput) use ($package) {
+        $this->cli->run(trim('dnf install -y ' . $package), function ($exitCode, $errorOutput) use ($package) {
             output($errorOutput);
 
-            throw new DomainException('Dnf was unable to install ['.$package.'].');
+            throw new DomainException('Dnf was unable to install [' . $package . '].');
         });
     }
 

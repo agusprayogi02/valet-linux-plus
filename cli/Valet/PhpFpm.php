@@ -7,6 +7,7 @@ use Tightenco\Collect\Support\Collection;
 use Valet\Contracts\PackageManager;
 use Valet\Contracts\ServiceManager;
 use Valet\Exceptions\VersionException;
+use Valet\PackageManagers\Dnf;
 use Valet\Traits\PhpFpmHelper;
 
 class PhpFpm
@@ -21,11 +22,28 @@ class PhpFpm
     protected $nginx;
 
     const SUPPORTED_PHP_VERSIONS = [
-        '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3',
+        '7.0',
+        '7.1',
+        '7.2',
+        '7.3',
+        '7.4',
+        '8.0',
+        '8.1',
+        '8.2',
+        '8.3',
     ];
 
     const COMMON_EXTENSIONS = [
-        'cli', 'mysql', 'gd', 'zip', 'xml', 'curl', 'mbstring', 'pgsql', 'intl', 'posix',
+        'cli',
+        'mysql',
+        'gd',
+        'zip',
+        'xml',
+        'curl',
+        'mbstring',
+        'pgsql',
+        'intl',
+        'posix',
     ];
 
     const FPM_CONFIG_FILE_NAME = 'valet.conf';
@@ -100,8 +118,8 @@ class PhpFpm
      */
     public function uninstall()
     {
-        if ($this->files->exists($this->fpmConfigPath().'/'.self::FPM_CONFIG_FILE_NAME)) {
-            $this->files->unlink($this->fpmConfigPath().'/'.self::FPM_CONFIG_FILE_NAME);
+        if ($this->files->exists($this->fpmConfigPath() . '/' . self::FPM_CONFIG_FILE_NAME)) {
+            $this->files->unlink($this->fpmConfigPath() . '/' . self::FPM_CONFIG_FILE_NAME);
             $this->stop();
         }
     }
@@ -254,7 +272,7 @@ class PhpFpm
     public function isolatedDirectories()
     {
         return $this->nginx->configuredSites()->filter(function ($item) {
-            return strpos($this->files->get(VALET_HOME_PATH.'/Nginx/'.$item), ISOLATED_PHP_VERSION) !== false;
+            return strpos($this->files->get(VALET_HOME_PATH . '/Nginx/' . $item), ISOLATED_PHP_VERSION) !== false;
         })->map(function ($item) {
             return ['url' => $item, 'version' => $this->normalizePhpVersion($this->site->customPhpVersion($item))];
         });
@@ -282,6 +300,9 @@ class PhpFpm
      */
     public function normalizePhpVersion($version)
     {
+        if ($this->pm instanceof Dnf) {
+            return null;
+        }
         return substr(preg_replace('/(?:php@?)?([0-9+])(?:.)?([0-9+])/i', '$1.$2', (string) $version), 0, 3);
     }
 
@@ -292,6 +313,9 @@ class PhpFpm
      */
     public function getCurrentVersion()
     {
+        if ($this->pm instanceof Dnf) {
+            return null;
+        }
         return $this->config->get('php_version', $this->getDefaultVersion());
     }
 
@@ -310,6 +334,6 @@ class PhpFpm
 
         $version = $this->normalizePhpVersion($version);
 
-        return \DevTools::getBin('php'.$version);
+        return \DevTools::getBin('php' . $version);
     }
 }

@@ -3,6 +3,7 @@
 namespace Valet\Traits;
 
 use Valet\Exceptions\VersionException;
+use Valet\PackageManagers\Dnf;
 
 trait PhpFpmHelper
 {
@@ -44,11 +45,11 @@ trait PhpFpmHelper
     {
         //Action 1: Update all separate secured versions
         $this->nginx->configuredSites()->map(function ($file) use ($version) {
-            $content = $this->files->get(VALET_HOME_PATH.'/Nginx/'.$file);
+            $content = $this->files->get(VALET_HOME_PATH . '/Nginx/' . $file);
             if (!$content) {
                 return;
             }
-            if (strpos($content, '# '.ISOLATED_PHP_VERSION) !== false) {
+            if (strpos($content, '# ' . ISOLATED_PHP_VERSION) !== false) {
                 return;
             }
             preg_match_all('/unix:(.*?.sock)/m', $content, $matchCount);
@@ -57,10 +58,10 @@ trait PhpFpmHelper
             }
             $content = preg_replace(
                 '/unix:(.*?.sock)/m',
-                'unix:'.VALET_HOME_PATH.'/'.$this->socketFileName($version),
+                'unix:' . VALET_HOME_PATH . '/' . $this->socketFileName($version),
                 $content
             );
-            $this->files->put(VALET_HOME_PATH.'/Nginx/'.$file, $content);
+            $this->files->put(VALET_HOME_PATH . '/Nginx/' . $file, $content);
         });
 
         //Action 2: Update NGINX valet.conf for php socket version.
@@ -79,7 +80,7 @@ trait PhpFpmHelper
 
     public function fpmSocketFile($version)
     {
-        return VALET_HOME_PATH.'/'.$this->socketFileName($version);
+        return VALET_HOME_PATH . '/' . $this->socketFileName($version);
     }
 
     /**
@@ -91,13 +92,13 @@ trait PhpFpmHelper
      */
     private function installConfiguration($version)
     {
-        $contents = $this->files->get(__DIR__.'/../../stubs/fpm.conf');
+        $contents = $this->files->get(__DIR__ . '/../../stubs/fpm.conf');
 
         $this->files->putAsUser(
-            $this->fpmConfigPath($version).'/'.self::FPM_CONFIG_FILE_NAME,
+            $this->fpmConfigPath($version) . '/' . self::FPM_CONFIG_FILE_NAME,
             str_array_replace([
-                'VALET_USER'            => user(),
-                'VALET_GROUP'           => group(),
+                'VALET_USER' => user(),
+                'VALET_GROUP' => group(),
                 'VALET_FPM_SOCKET_FILE' => $this->fpmSocketFile($version),
             ], $contents)
         );
@@ -111,12 +112,16 @@ trait PhpFpmHelper
      */
     private function utilizedPhpVersions()
     {
-        $fpmSockFiles = collect(self::SUPPORTED_PHP_VERSIONS)->map(function ($version) {
+        $versions = self::SUPPORTED_PHP_VERSIONS;
+        if ($this->pm instanceof Dnf) {
+            $versions = array_merge([''], self::SUPPORTED_PHP_VERSIONS);
+        }
+        $fpmSockFiles = collect($versions)->map(function ($version) {
             return $this->socketFileName($this->normalizePhpVersion($version));
         })->unique();
 
         $versions = $this->nginx->configuredSites()->map(function ($file) use ($fpmSockFiles) {
-            $content = $this->files->get(VALET_HOME_PATH.'/Nginx/'.$file);
+            $content = $this->files->get(VALET_HOME_PATH . '/Nginx/' . $file);
 
             // Get the normalized PHP version for this config file, if it's defined
             foreach ($fpmSockFiles as $sock) {
@@ -146,10 +151,10 @@ trait PhpFpmHelper
         $versionWithoutDot = preg_replace('~[^\d]~', '', $version);
 
         return collect([
-            '/etc/php/'.$version.'/fpm/pool.d', // Ubuntu
-            '/etc/php'.$version.'/fpm/pool.d', // Ubuntu
-            '/etc/php'.$version.'/php-fpm.d', // Manjaro
-            '/etc/php'.$versionWithoutDot.'/php-fpm.d', // ArchLinux
+            '/etc/php/' . $version . '/fpm/pool.d', // Ubuntu
+            '/etc/php' . $version . '/fpm/pool.d', // Ubuntu
+            '/etc/php' . $version . '/php-fpm.d', // Manjaro
+            '/etc/php' . $versionWithoutDot . '/php-fpm.d', // ArchLinux
             '/etc/php7/fpm/php-fpm.d', // openSUSE PHP7
             '/etc/php8/fpm/php-fpm.d', // openSUSE PHP8
             '/etc/php8/fpm/php-fpm.d', // openSUSE PHP8
@@ -172,9 +177,13 @@ trait PhpFpmHelper
      */
     private function validateVersion($version)
     {
-        if (!in_array($version, self::SUPPORTED_PHP_VERSIONS)) {
+        $versions = self::SUPPORTED_PHP_VERSIONS;
+        if ($this->pm instanceof Dnf) {
+            $versions = array_merge([''], self::SUPPORTED_PHP_VERSIONS);
+        }
+        if (!in_array($version, $versions)) {
             throw new VersionException(
-                "Invalid version [$version] used. Supported versions are :".implode(self::SUPPORTED_PHP_VERSIONS)
+                "Invalid version [$version] used. Supported versions are :" . implode(self::SUPPORTED_PHP_VERSIONS)
             );
         }
     }
@@ -196,7 +205,7 @@ trait PhpFpmHelper
         $prefix = $this->pm->getPhpExtensionPattern($version);
 
         return str_array_replace([
-            '{VERSION}'             => $version,
+            '{VERSION}' => $version,
             '{VERSION_WITHOUT_DOT}' => $versionWithoutDot,
         ], $prefix);
     }
@@ -205,12 +214,12 @@ trait PhpFpmHelper
     {
         $installedPhpVersion = $this->config->get('installed_php_version');
         if ($installedPhpVersion && $installedPhpVersion >= $version) {
-            if (is_dir(__DIR__.'/../../../vendor')) {
+            if (is_dir(__DIR__ . '/../../../vendor')) {
                 // Local vendor
                 $this->cli->runAsUser('composer update');
             } else {
                 // Global vendor
-                $this->cli->runAsUser('composer global require genesisweb/valet-linux-plus:'.VALET_VERSION.' -W');
+                $this->cli->runAsUser('composer global require genesisweb/valet-linux-plus:' . VALET_VERSION . ' -W');
             }
             $this->config->set('installed_php_version', $version);
         }
